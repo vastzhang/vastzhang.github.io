@@ -16,7 +16,7 @@
     <div id="container">
       
 <div id="header">
-  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;Kubernetes网络初探
+  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;<a href="/#kubernets">kubernets</a>&nbsp;&#187;&nbsp;Kubernetes网络初探
     <span class="updated">Page Updated&nbsp;
       2019-04-25 21:30
     </span></div>
@@ -51,7 +51,7 @@
 <li>
 <p><strong>Namespace</strong><br />
 提到容器就不得不提起容器的核心底层技术Namespace，Namespace为Linux内核当中提供的一种隔离机制，最初在2002年引入到Linux 2.4.19当中，且只有Mount Namespace用于文件系统隔离。截止目前，Linux总共提供了7种Namespace（since Linux 4.6），系统当中运行的每一个进程都与一个Namespace相关联，且该进程只能看到和使用该Namespace下的资源。可以简单将Namespace理解为操作系统对进程实现的一种“障眼法”，比如通过UTS Namespace可以实现让运行在同一台机器上的进程看到不同的Hostname。正是由于Namespace开创性地隔离方式才让容器的实现得以变为可能，才能让我们的软件真正地实现“build once, running everywhere”。<br />
-<img alt="" src="../attach/K8S/0.png" /></p>
+<img alt="" src="../../attach/K8S/0.png" /></p>
 </li>
 <li>
 <p><strong>Network Namespace</strong><br />
@@ -66,11 +66,11 @@ Network Namespace是Linux 2.6.24才开始引入的，直到Linux 2.6.29才完成
 <li>
 <p><strong>Namespace实操</strong><br />
 在回答上面提出的Network Namespace网络通信的问题前，我们先来做一些简单的命令行操作，先对Namespace有一个感性地认识，实验环境如下： <br />
-<img alt="" src="../attach/K8S/1.png" /></p>
+<img alt="" src="../../attach/K8S/1.png" /></p>
 <p>通过命令lsns可以查看到宿主机上所有的Namespace（注意需要使用root用户执行，否则可能会出现有些Namespace看不到的情况）： <br />
-<img alt="" src="../attach/K8S/2.png" /></p>
+<img alt="" src="../../attach/K8S/2.png" /></p>
 <p>lsns默认会输出所有可以看到的Namespace，简单解释一下lsns命令各个输出列的含义：<br />
-<img alt="" src="../attach/K8S/3.png" /></p>
+<img alt="" src="../../attach/K8S/3.png" /></p>
 <p>与Network Namespace相关性较强的还有另外一个命令 ip netns，主要用于持久化命名空间的管理，包括Network Namespace的创建、删除以和配置等。 ip netns命令在创建Network Namespace时默认会在/var/run/netns目录下创建一个bind mount的挂载点，从而达到持久化Network Namespace的目的，即允许在该命名空间当中没有进程的情况下依然保留该命名空间。Docker当中由于缺少了这一步，玩过Docker的同学就会发现通过Docker创建容器后并不能在宿主机上通过 ip netns查看到相关的Network Namespace（这个后面会讲怎么才能够看到，稍微小操作一下就行）。</p>
 <p>与Network Namespace相关操作命令：</p>
 <div class="hlcode"><pre><span class="nx">ip</span> <span class="nx">netns</span> <span class="nb">add</span>  <span class="o">&lt;</span><span class="nx">namespace</span> <span class="nb">name</span><span class="o">&gt;</span> <span class="err">#</span> <span class="nx">添加network</span> <span class="nx">namespace</span>
@@ -81,18 +81,18 @@ Network Namespace是Linux 2.6.24才开始引入的，直到Linux 2.6.29才完成
 
 
 <p>创建名为netA的Network Namespace： <br />
-<img alt="" src="../attach/K8S/4.png" /></p>
+<img alt="" src="../../attach/K8S/4.png" /></p>
 <p>查看创建的Network Namespace： <br />
-<img alt="" src="../attach/K8S/5.png" /></p>
+<img alt="" src="../../attach/K8S/5.png" /></p>
 <p>可以看到Network Namespace netA当中仅有一个环回网络接口lo，且有独立的路由表（为空）。</p>
 <p>宿主机（root network namespace）上有网络接eth0（10.10.88.170）和eth1（172.16.130.164），此时可以直接ping通IP 172.16.130.164。<br />
-<img alt="" src="../attach/K8S/6.png" /></p>
+<img alt="" src="../../attach/K8S/6.png" /></p>
 <p>尝试将root network namespace当中的eth0接口添加到network namespce netA当中：</p>
 <div class="hlcode"><pre><span class="n">ip</span> <span class="n">link</span> <span class="n">set</span> <span class="n">dev</span> <span class="n">eth0</span> <span class="n">netns</span> <span class="n">netA</span>
 </pre></div>
 
 
-<p><img alt="" src="../attach/K8S/7.png" /></p>
+<p><img alt="" src="../../attach/K8S/7.png" /></p>
 <p>将宿主机上的网络接口eth0（10.10.88.170）加入到网络命名空间netA后：</p>
 <div class="hlcode"><pre><span class="mf">1.</span> <span class="err">宿主机上看不到</span><span class="n">eth0</span><span class="err">网络接口了（同一时刻网络接口只能在一个</span><span class="n">Network</span> <span class="n">Namespace</span><span class="err">）</span>
 <span class="mf">2.</span> <span class="n">netA</span> <span class="n">network</span> <span class="n">namespace</span><span class="err">里面无法</span><span class="n">ping</span><span class="err">通</span><span class="n">root</span> <span class="n">namespace</span><span class="err">当中的</span><span class="n">eth1</span><span class="err">（网络隔离）</span>
@@ -119,7 +119,7 @@ Network Namespace是Linux 2.6.24才开始引入的，直到Linux 2.6.29才完成
 
 
 <p>创建一对vEth，创建名为veth0A，且对端为veth0B的vEth设备。<br />
-<img alt="" src="../attach/K8S/8.png" /><br />
+<img alt="" src="../../attach/K8S/8.png" /><br />
 可以看到root network namespace当中多出来了两个网络接口veth0A和veth0B，网络接口名称@后面的接的正是对端的接口名称。</p>
 <p>创建Network Namespace netA和netB：</p>
 <div class="hlcode"><pre><span class="n">ip</span> <span class="n">netns</span> <span class="n">add</span> <span class="n">netA</span>
@@ -127,27 +127,27 @@ Network Namespace是Linux 2.6.24才开始引入的，直到Linux 2.6.29才完成
 </pre></div>
 
 
-<p><img alt="" src="../attach/K8S/9.png" /></p>
+<p><img alt="" src="../../attach/K8S/9.png" /></p>
 <p>分别将接口veth0A加入到netA，将接口veth0B加入到netB：</p>
 <div class="hlcode"><pre><span class="n">ip</span> <span class="n">link</span> <span class="n">set</span> <span class="n">veth0A</span> <span class="n">netns</span> <span class="n">netA</span>
 <span class="n">ip</span> <span class="n">link</span> <span class="n">set</span> <span class="n">veth0B</span> <span class="n">netns</span> <span class="n">netB</span>
 </pre></div>
 
 
-<p><img alt="" src="../attach/K8S/10.png" /> <br />
+<p><img alt="" src="../../attach/K8S/10.png" />  <br />
 这个时候通过ip link查看宿主机（root network namespace）网络接口时可以发现，已经看不到接口veth0A和veth0B了（同一时刻一个接口只能处于一个Network Namespace下面）。</p>
 <p>再分别到netA和netB两个Network Namespace当中去查看，可以看到两个Network Namespace当中都多了一个网络接口。<br />
-<img alt="" src="../attach/K8S/11.png" />   </p>
+<img alt="" src="../../attach/K8S/11.png" />    </p>
 <p>分别拉起两个网络接口并配上IP，这里将为veth0A配置IP 192.168.100.1，veth0B配置IP 192.168.100.2：<br />
-<img alt="" src="../attach/K8S/12.png" /> <br />
-<img alt="" src="../attach/K8S/13.png" />   </p>
-<p><img alt="" src="../attach/K8S/14.png" /> <br />
-<img alt="" src="../attach/K8S/15.png" />   </p>
+<img alt="" src="../../attach/K8S/12.png" />  <br />
+<img alt="" src="../../attach/K8S/13.png" />    </p>
+<p><img alt="" src="../../attach/K8S/14.png" />  <br />
+<img alt="" src="../../attach/K8S/15.png" />    </p>
 <p>测试通过veth pair连接的两个Network Namespace netA和netB之间的网络连接。</p>
 <p>在netA（192.168.100.1）当中ping netB（192.168.100.2）： <br />
-<img alt="" src="../attach/K8S/16.png" />   </p>
+<img alt="" src="../../attach/K8S/16.png" />    </p>
 <p>在netB（192.168.100.2）当中ping netA（192.168.100.1）： <br />
-<img alt="" src="../attach/K8S/17.png" />   </p>
+<img alt="" src="../../attach/K8S/17.png" />    </p>
 <p>可以发现netA跟netB这两个Network Namespace在通过veth pair连接后已经可以进行正常的网络通信了。</p>
 <p>解决了容器Network Namespace隔离的问题，这个时候有云计算经验或者熟悉OpenStack和ZStack的同学就会发现，现在的场景跟虚拟机之间的网络互联是不是简直一模一样了？</p>
 <p>vEth作为一个二层网络设备，当需要跟别的网络设备相连时该怎么处理呢？在现实生活场景当中我们会拿一个交换机将不同的网线连接起来。实际上在虚拟化场景下也是如此，Linux Bridge和Open vSwith（OVS）是当下比较常用的两种连接二层网络的解决方案，而Docker当中采用的是Linux Bridge</p>
@@ -162,11 +162,11 @@ Network Namespace是Linux 2.6.24才开始引入的，直到Linux 2.6.29才完成
 
 
 <p>查看网容器testA络接口状况： <br />
-<img alt="" src="../attach/K8S/18.png" /></p>
+<img alt="" src="../../attach/K8S/18.png" /></p>
 <p>查看容器testB络接口状况： <br />
-<img alt="" src="../attach/K8S/19.png" /></p>
+<img alt="" src="../../attach/K8S/19.png" /></p>
 <p>查看网桥状态： <br />
-<img alt="" src="../attach/K8S/20.png" /><br />
+<img alt="" src="../../attach/K8S/20.png" /><br />
 可以发现docker0上面已经连接了两个虚拟网络接口（vEth）。</p>
 <p>在docker0上通过tcpdump抓包：</p>
 <div class="hlcode"><pre><span class="n">tcpdump</span> <span class="o">-</span><span class="n">n</span> <span class="o">-</span><span class="n">i</span> <span class="n">docker0</span>
@@ -323,7 +323,7 @@ NAME STATUS ROLES AGE VERSION LABELS
 
 
 <p>此时两个Pod的网络连接如图所示： <br />
-<img alt="" src="../attach/K8S/21.png" /></p>
+<img alt="" src="../../attach/K8S/21.png" /></p>
 <p>网络包从Container A发送到Container B的过程如下：</p>
 <ol>
 <li>网络包从busybox1的eth0发出，并通过vethef16d6b0进入到root netns（网络包从vEth的一端发送后另一端会立马收到）。</li>
@@ -345,7 +345,7 @@ NAME STATUS ROLES AGE VERSION LABELS
     <h2>Related</h2>
     <ul>
     
-    <li><a href="//CNI.html">Kubernetes CNI网络最强对比：Flannel、Calico、Canal和Weave</a></li>
+    <li><a href="/kubernets/CNI.html">Kubernetes CNI网络最强对比：Flannel、Calico、Canal和Weave</a></li>
     
     </ul>
   </div>
@@ -354,7 +354,7 @@ NAME STATUS ROLES AGE VERSION LABELS
       <span>
         <p>Copyright © 2019 Edward.
         Powered by <a href="http://simiki.org/" target="_blank">Simiki</a>.</p>
-        <p>Site Generated 2019-04-25 23:36:23</p>
+        <p>Site Generated 2019-04-25 23:57:50</p>
       </span>
     </div>
 
