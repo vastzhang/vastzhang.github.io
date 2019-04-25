@@ -6,7 +6,7 @@
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="alternate" type="application/atom+xml" href="atom.xml" title="Atom feed">
-    <title>Kubernetes网络初探 - Edward Wiki</title>
+    <title>kubernetes网络机制、方法和操作指南 - Edward Wiki</title>
     <meta name="keywords" content="wiki,"/>
     <meta name="description" content="Simiki is a simple web site."/>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -16,17 +16,17 @@
     <div id="container">
       
 <div id="header">
-  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;<a href="/#kubernets">kubernets</a>&nbsp;&#187;&nbsp;Kubernetes网络初探
+  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;<a href="/#Kubernets">Kubernets</a>&nbsp;&#187;&nbsp;kubernetes网络机制、方法和操作指南
     <span class="updated">Page Updated&nbsp;
       2019-04-25 21:30
     </span></div>
 </div>
 <div class="clearfix"></div>
 
-<div class="page_title">Kubernetes网络初探</div>
+<div class="page_title">kubernetes网络机制、方法和操作指南</div>
 
   <div class="toc"><span class="toctitle">Table of Contents</span><ul>
-<li><a href="#kubernetes">深入浅出Kubernetes网络：容器网络初探</a><ul>
+<li><a href="#kubernetes">kubernetes网络机制、方法和操作指南</a><ul>
 <li><a href="#_1">前言</a><ul>
 <li><a href="#network-namespace">Network Namespace</a></li>
 <li><a href="#vethvirtual-ethernet-device">vEth（Virtual Ethernet Device）</a></li>
@@ -42,8 +42,7 @@
 </li>
 </ul>
 </div>
-<h1 id="kubernetes">深入浅出Kubernetes网络：容器网络初探</h1>
-<p><strong>Kubernetes网络全解：机制、方法、实操的超强指南</strong></p>
+<h1 id="kubernetes">kubernetes网络机制、方法和操作指南</h1>
 <h2 id="_1">前言</h2>
 <p>随着云计算的兴起，各大平台之争也落下了帷幕，Kubernetes作为后起之秀已经成为了事实上的PaaS平台标准，而网络又是云计算环境当中最复杂的部分，总是让人琢磨不透。本文尝试着围绕在Kubernetes环境当中同一个节点（work node）上的Pod之间是如何进行网络通信的这个问题进行展开，暂且不考虑跨节点网络通信的情况。</p>
 <h3 id="network-namespace"><strong>Network Namespace</strong></h3>
@@ -345,7 +344,7 @@ NAME STATUS ROLES AGE VERSION LABELS
     <h2>Related</h2>
     <ul>
     
-    <li><a href="/kubernets/CNI.html">Kubernetes CNI网络最强对比：Flannel、Calico、Canal和Weave</a></li>
+    <li><a href="/Kubernets/CNI.html">CNI网络对比：Flannel、Calico、Canal和Weave</a></li>
     
     </ul>
   </div>
@@ -354,7 +353,7 @@ NAME STATUS ROLES AGE VERSION LABELS
       <span>
         <p>Copyright © 2019 Edward.
         Powered by <a href="http://simiki.org/" target="_blank">Simiki</a>.</p>
-        <p>Site Generated 2019-04-25 23:57:50</p>
+        <p>Site Generated 2019-04-26 00:23:00</p>
       </span>
     </div>
 
