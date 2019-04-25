@@ -1,0 +1,176 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <link rel="Stylesheet" type="text/css" href="/static/css/style.css">
+    <link rel="Stylesheet" type="text/css" href="/static/css/tango.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="alternate" type="application/atom+xml" href="atom.xml" title="Atom feed">
+    <title>MacOS搭建wiki - Edward Wiki</title>
+    <meta name="keywords" content="wiki,"/>
+    <meta name="description" content="Simiki is a simple web site."/>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  </head>
+
+  <body>
+    <div id="container">
+      
+<div id="header">
+  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;<a href="/#intro">intro</a>&nbsp;&#187;&nbsp;MacOS搭建wiki
+    <span class="updated">Page Updated&nbsp;
+      2018-06-12 19:12
+    </span></div>
+</div>
+<div class="clearfix"></div>
+
+<div class="page_title">MacOS搭建wiki</div>
+
+  <div class="toc"><span class="toctitle">Table of Contents</span><ul>
+<li><a href="#_1">前言</a></li>
+<li><a href="#simiki">simiki介绍</a></li>
+<li><a href="#_2">前期环境准备</a><ul>
+<li><a href="#push">push 账号更换问题与解决方法</a></li>
+</ul>
+</li>
+<li><a href="#wiki">wiki环境准备</a></li>
+<li><a href="#githubiowiki">将github.io与wiki仓库链接起来</a></li>
+<li><a href="#_3">如何发布网页</a></li>
+<li><a href="#markdown">markdown编辑器</a></li>
+<li><a href="#_4">感谢</a></li>
+<li><a href="#_5">遗留问题</a></li>
+</ul>
+</div>
+<h1 id="_1">前言</h1>
+<p>搭建个人wiki纯属机缘巧合，最近一直在尝试学习编程，前端，后端，数据库等等。曾经尝试着使用django搭建网站，wordpress等弄个博客玩玩，扩充自己的知识。这两天在网上查找资料的时候发现了tracholar的个人wiki，我觉得写得不错，同时也是整理自己平时学习的东西的一个好的方案。</p>
+<h1 id="simiki">simiki介绍</h1>
+<p>Simiki 是一个简单的个人Wiki框架。使用Markdown书写Wiki, 生成静态HTML页面。Wiki源文件按目录分类存放, 方便管理维护。</p>
+<h1 id="_2">前期环境准备</h1>
+<p>1.安装python3.6。<a href="https://www.python.org/">Python</a>。<br />
+2.设置pycharm 虚拟环境变量。Preferences | Project Interpreter | Virtualenv Environment.<br />
+3.安装simiki库及其依赖库，我使用pycharm安装。也可以使用pip进行安装，只需要一条命令sudo pip install simiki。<br />
+4.注册github账户，并且创建<username>.github.io代码项目。完成之后，你应该可以通过该<br />
+子域名访问到自己的page页面，具体细节请参考<a href="https://pages.github.com">官方文档</a>。</p>
+<h2 id="push">push 账号更换问题与解决方法</h2>
+<p>我遇到情况比较特殊，使用一个老账号push一次，后来申请一个新账号，然后就无法push了，总是提示老账号被拒绝，😓😓，解决办法如下：<br />
+如果git push -u origin master出现问题，请检查macos端git 用户名密码设置。<br />
+参考<a href="http://www.runoob.com/git/git-remote-repo.html">mac端生成ssh key并添加到github.com</a>。<br />
+添加完sshkey，使用使用ssh方式，从github.com clone库到mac。</p>
+<p>如果报错：</p>
+<div class="hlcode"><pre><span class="n">xcrun</span><span class="o">:</span> <span class="n">error</span><span class="o">:</span> <span class="n">invalid</span> <span class="n">active</span> <span class="n">developer</span> <span class="n">path</span> <span class="o">(/</span><span class="n">Library</span><span class="sr">/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/x</span><span class="n">crun</span>
+</pre></div>
+
+
+<p>解决方法，重装xcode command line：</p>
+<div class="hlcode"><pre><span class="n">xcode</span><span class="o">-</span><span class="n">select</span> <span class="o">--</span><span class="n">install</span>
+</pre></div>
+
+
+<p>如果没有解决问题，执行以下命令：</p>
+<div class="hlcode"><pre><span class="n">sudo</span> <span class="n">xcode</span><span class="o">-</span><span class="n">select</span> <span class="o">-</span><span class="k">switch</span> <span class="o">/</span>
+</pre></div>
+
+
+<p>MacOS下查看git push的用户名与密码：</p>
+<div class="hlcode"><pre><span class="cp">#more ～/.gitconfig</span>
+<span class="cp">#more .git/config</span>
+<span class="n">git</span> <span class="n">config</span> <span class="o">--</span><span class="n">global</span> <span class="n">user</span><span class="p">.</span><span class="n">name</span>  <span class="err">“</span><span class="n">vastzhang</span><span class="err">”</span> 
+<span class="n">git</span> <span class="n">config</span> <span class="o">--</span><span class="n">global</span> <span class="n">user</span><span class="p">.</span><span class="n">email</span>  <span class="err">“</span><span class="n">aa</span><span class="err">@</span><span class="n">aa</span><span class="p">.</span><span class="n">com</span><span class="err">”</span>
+<span class="n">git</span> <span class="n">config</span> <span class="n">user</span><span class="p">.</span><span class="n">name</span>  <span class="err">“</span><span class="n">vastzhang</span><span class="err">”</span>  <span class="err">本项目使用的用户名</span>
+<span class="n">git</span> <span class="n">config</span> <span class="n">user</span><span class="p">.</span><span class="n">email</span>  <span class="err">“</span><span class="n">aa</span><span class="err">@</span><span class="n">aa</span><span class="p">.</span><span class="n">com</span><span class="err">”</span> <span class="err">本项目使用的邮箱</span>
+</pre></div>
+
+
+<h1 id="wiki">wiki环境准备</h1>
+<p>在github中创建wiki项目，clone到本地，cd wiki/下，创建gh-pages分支。</p>
+<div class="hlcode"><pre><span class="mf">1.</span> <span class="n">cd</span> <span class="n">wiki</span>
+<span class="mf">2.</span> <span class="n">git</span> <span class="n">branch</span>  <span class="err">查看</span><span class="n">branch</span><span class="err">，如果无任何显示，可以继续下一步，对结果无影响。</span>
+<span class="mf">3.</span> <span class="n">git</span> <span class="n">checkout</span> <span class="o">-</span><span class="n">b</span> <span class="n">gh</span><span class="o">-</span><span class="n">pages</span> <span class="err">创建分支，并切换到分支</span>
+<span class="mf">4.</span> <span class="n">simiki</span> <span class="n">init</span>   <span class="err">初始化目录结构</span>
+<span class="mf">5.</span> <span class="n">simiki</span> <span class="n">g</span>      <span class="err">产生</span><span class="n">html</span><span class="err">文件</span>
+</pre></div>
+
+
+<p>此时在wiki目录下产生wiki的所有目录结构，可以ls查看。这时候如何将github.io与这个wiki仓库链接起来呢？</p>
+<h1 id="githubiowiki">将github.io与wiki仓库链接起来</h1>
+<p>安装Fabric，并且在生成的_config.yml中添加deploy配置项(对格式有严格要求，多/少空格键，少单引号，都会在最后fab deploy时报错)：</p>
+<div class="hlcode"><pre><span class="n">deploy</span><span class="err">：</span>
+  <span class="o">-</span> <span class="n">type</span><span class="o">:</span> <span class="n">git</span>
+    <span class="nl">remote:</span> <span class="err">‘</span><span class="n">origin</span><span class="err">’</span>
+    <span class="nl">branch:</span> <span class="err">‘</span><span class="n">gh</span><span class="o">-</span><span class="n">pages</span><span class="err">’</span>
+</pre></div>
+
+
+<p>该段代码的作用就是将output目录下生成的子文件或者子文件目录，基于git的方式，推送到远程仓库相应的分支下。<br />
+由于我mac安装的是python3.6 所以需要安装fabric3：</p>
+<div class="hlcode"><pre><span class="n">pip3</span> <span class="n">install</span> <span class="n">fabric3</span>
+</pre></div>
+
+
+<p>还需要安装ghp-import(必须是此版本，版本太高不兼容)，同时要确认本地和远程仓库关联了。 </p>
+<div class="hlcode"><pre><span class="n">pip</span> <span class="n">install</span> <span class="n">ghp</span><span class="o">-</span><span class="n">import</span><span class="o">=</span><span class="mf">1.0.1</span>
+</pre></div>
+
+
+<p>安装完成后，可以执行部署命令即可成功同步到<a href="https://vastzhang.github.io/">wiki</a> </p>
+<div class="hlcode"><pre><span class="n">fab</span> <span class="n">delpoy</span>
+</pre></div>
+
+
+<p>如果报错： ! [rejected]        master -&gt; master (non-fast-forward)，执行强者push，可以解决此问题。</p>
+<div class="hlcode"><pre><span class="n">git</span> <span class="n">push</span> <span class="o">-</span><span class="n">f</span> <span class="n">origin</span> <span class="n">master</span>
+</pre></div>
+
+
+<p>此时可以访问个人wiki了。</p>
+<h1 id="_3">如何发布网页</h1>
+<p>进到mac存放wiki/content的目录下，创建一个目录文件夹。在文件夹下创建markdown格式的文件，例如xxx.md。</p>
+<p>先需要注意的是目前simiki仅支持markdown的格式，因此我们每次的文章都需要用markdown的形式来书写，同时还要注意每个markdown都需要添加类似于头文件的东西，头文件前面不能有空行，如</p>
+<div class="hlcode"><pre><span class="o">---</span>
+<span class="nl">title:</span> <span class="s">&quot;First web&quot;</span>
+<span class="nl">layout:</span> <span class="n">page</span>
+<span class="nl">date:</span> <span class="mi">2018</span><span class="o">-</span><span class="mo">06</span><span class="o">-</span><span class="mo">01</span> <span class="mo">00</span><span class="o">:</span><span class="mo">00</span>
+<span class="o">---</span>
+</pre></div>
+
+
+<p>如果每个markdown文件中没有上面的文件内容，你在使用simiki g编译的时候会报下面的格式错误:</p>
+<div class="hlcode"><pre>  <span class="n">File</span> <span class="s">&quot;/Users/Vast/百度云同步盘/wiki/Blockchainvenv/lib/python3.6/site-packages/simiki/generators.py&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">203</span><span class="p">,</span> <span class="n">in</span> <span class="n">extract_page</span>
+    <span class="n">raise</span> <span class="n">Exception</span><span class="p">(</span><span class="err">&#39;</span><span class="n">extracting</span> <span class="n">page</span> <span class="n">with</span> <span class="n">format</span> <span class="n">error</span><span class="p">,</span> <span class="err">&#39;</span>
+<span class="nl">Exception:</span> <span class="n">extracting</span> <span class="n">page</span> <span class="n">with</span> <span class="n">format</span> <span class="n">error</span><span class="p">,</span> <span class="n">see</span> <span class="o">&lt;</span><span class="n">http</span><span class="o">:</span><span class="c1">//simiki.org/docs/metadata.html&gt;</span>
+</pre></div>
+
+
+<p>我们写好文章就可以用UTF8格式save到wiki/content/下的正确目录。<br />
+cd wiki/ 目录下，然后执行以下两条命令：</p>
+<div class="hlcode"><pre><span class="c">#simiki g   </span>
+<span class="c">#fab deploy</span>
+</pre></div>
+
+
+<p>可以访问自己最新提交的文章了。由于网速、数据同步等问题，发布后需要一段时间才可以正常显示最新文章。</p>
+<h1 id="markdown">markdown编辑器</h1>
+<p>推荐使用sublime text3 搭配MarkdownEditing,Markdown Preview插件。非常方便。<br />
+详细步骤可以参考<a href="https://www.cnblogs.com/Sinte-Beuve/p/5148108.html">Sublime Text3下的markdown插件的安装及配置</a><br />
+和<a href="https://jingyan.baidu.com/article/f006222838bac2fbd2f0c87d.html">使用Sublime Text 3作为Markdown编辑器</a>。</p>
+<h1 id="_4">感谢</h1>
+<p>这是我折腾了两天时间做的，困傻了😢😢😢😢<a href="https://vastzhang.github.io/wiki">wiki</a>，记录自己的点点滴滴,希望与大家多沟通交流。<br />
+本次搭建参考了<a href="https://tracholar.github.io/wiki/web/simiki.html">tracholar</a><br />
+和<a href="https://blog.csdn.net/u013041398/article/details/73958706?utm_source=itdadao&amp;utm_medium=referral">sthsf</a>两位的文章，再次表示感谢！！！</p>
+<h1 id="_5">遗留问题</h1>
+<p>本想把代码hightlight 也调成灰黑色背景，绿色字体，但是各种调试css也没能成功，你如果会调写css，可以关注公众号请联系我，非常感谢！！！<br />
+<div align="center" width="30" height="30"><br />
+<img alt="" src="../../attach/wechat.jpg" title="wechat" /><br />
+</div></p>
+    </div>
+    <div id="footer">
+      <span>
+        <p>Copyright © 2019 Edward.
+        Powered by <a href="http://simiki.org/" target="_blank">Simiki</a>.</p>
+        <p>Site Generated 2019-04-25 23:36:23</p>
+      </span>
+    </div>
+
+    
+    
+  </body>
+</html>

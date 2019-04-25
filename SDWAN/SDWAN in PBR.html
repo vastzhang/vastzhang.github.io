@@ -1,0 +1,404 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <link rel="Stylesheet" type="text/css" href="/static/css/style.css">
+    <link rel="Stylesheet" type="text/css" href="/static/css/tango.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="alternate" type="application/atom+xml" href="atom.xml" title="Atom feed">
+    <title>SD-WAN in PBR - Edward Wiki</title>
+    <meta name="keywords" content="wiki,"/>
+    <meta name="description" content="Simiki is a simple web site."/>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  </head>
+
+  <body>
+    <div id="container">
+      
+<div id="header">
+  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;<a href="/#SDWAN">SDWAN</a>&nbsp;&#187;&nbsp;SD-WAN in PBR
+    <span class="updated">Page Updated&nbsp;
+      2018-06-15 20:00
+    </span></div>
+</div>
+<div class="clearfix"></div>
+
+<div class="page_title">SD-WAN in PBR</div>
+
+  <div class="toc"><span class="toctitle">Table of Contents</span><ul>
+<li><a href="#_1">拓扑图</a></li>
+<li><a href="#_2">资源规划列表</a></li>
+<li><a href="#_3">试验目的</a></li>
+<li><a href="#_4">设备开箱预配置</a><ul>
+<li><a href="#ntp">配置时区和NTP</a></li>
+<li><a href="#_5">检查网卡</a></li>
+<li><a href="#license">安装license</a></li>
+<li><a href="#_6">配置超时时间</a></li>
+<li><a href="#mcn">配置 MCN 模式</a></li>
+<li><a href="#_7">进入配置编辑器</a></li>
+</ul>
+</li>
+<li><a href="#_8">测试平台</a></li>
+<li><a href="#sdwan">SDWAN配置</a><ul>
+<li><a href="#mcn_1">MCN配置</a><ul>
+<li><a href="#site">新建site</a></li>
+<li><a href="#_9">配置接口</a></li>
+<li><a href="#ip">配置虚拟IP</a></li>
+<li><a href="#wan-linkaccess-interface">添加WAN link，配置带宽，关联Access Interface</a></li>
+<li><a href="#connections">在Connections中检查路由可达性</a></li>
+<li><a href="#site_1">添加分支site</a></li>
+<li><a href="#site_2">分支site配置接口</a></li>
+<li><a href="#siteip">分支site配置虚拟IP</a></li>
+<li><a href="#sitewan-linkaccess-interface">分支site添加分支WAN link，配置带宽，关联Access Interface</a></li>
+<li><a href="#siteconnections">分支site，在Connections中检查路由可达性</a></li>
+<li><a href="#_10">启用虚拟路径</a></li>
+<li><a href="#_11">手动创建另外一条虚拟路径</a></li>
+<li><a href="#_12">保存配置</a></li>
+<li><a href="#export">Export 配置到<Change Management inbox></a></li>
+<li><a href="#_13">激活配置</a></li>
+<li><a href="#os">首次激活配置，必须需要升级OS版本</a></li>
+<li><a href="#virtual-wan-service">启用Virtual WAN Service</a></li>
+<li><a href="#_14">导出配置文件</a></li>
+</ul>
+</li>
+<li><a href="#client">client配置</a><ul>
+<li><a href="#_15">分支首次需要上传配置文件</a></li>
+<li><a href="#_16">分支，激活配置文件</a></li>
+<li><a href="#virtual-wan-service_1">启用Virtual WAN Service</a></li>
+</ul>
+</li>
+<li><a href="#monitoring">查看Monitoring中路径的状态</a></li>
+</ul>
+</li>
+<li><a href="#_17">网络设备配置</a><ul>
+<li><a href="#_18">检测路由可达性</a></li>
+<li><a href="#_19">匹配业务流</a></li>
+</ul>
+</li>
+<li><a href="#_20"></a></li>
+<li><a href="#_21"></a><ul>
+<li><a href="#_22">配置策略路由</a></li>
+</ul>
+</li>
+<li><a href="#_23"></a></li>
+<li><a href="#_24"></a></li>
+<li><a href="#_25"></a><ul>
+<li><a href="#_26">接口应用策略路由</a></li>
+</ul>
+</li>
+<li><a href="#_27"></a></li>
+<li><a href="#_28"></a><ul>
+<li><a href="#_29">策略路由与链路探测结合</a></li>
+<li><a href="#traceroute">traceroute不显示路径解决办法</a><ul>
+<li><a href="#h3c">H3C解决办法</a></li>
+</ul>
+</li>
+<li><a href="#pbr">PBR原理参考</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<h1 id="_1">拓扑图</h1>
+<p><img alt="1" src="../../attach/SDWANinPBR.assets/1.jpg" /></p>
+<h1 id="_2">资源规划列表</h1>
+<table>
+<thead>
+<tr>
+<th align="left">Site Name</th>
+<th align="left">DataCenter Site</th>
+<th>Branch Site</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Appliance Name</td>
+<td align="left">DC-site</td>
+<td>Branch-Site</td>
+</tr>
+<tr>
+<td align="left">Management IP</td>
+<td align="left">192.168.1.155</td>
+<td>192.168.1.156</td>
+</tr>
+<tr>
+<td align="left">Security Key</td>
+<td align="left">默认</td>
+<td>默认</td>
+</tr>
+<tr>
+<td align="left">Model/Edition</td>
+<td align="left">4100</td>
+<td>4100</td>
+</tr>
+<tr>
+<td align="left">Mode</td>
+<td align="left">PBR mode (Virtual Inline Mode)</td>
+<td>Inline</td>
+</tr>
+<tr>
+<td align="left">Topology</td>
+<td align="left">2 x WAN Path</td>
+<td>2 x WAN Path</td>
+</tr>
+<tr>
+<td align="left">VIP Address</td>
+<td align="left">192.168.5.2/24 – MPLS                                                                  192.168.5.3/24 – Internet</td>
+<td>192.168.6.2/24 - MPLS 192.168.6.3/24 – Internet *Public IP a.b.c.d</td>
+</tr>
+<tr>
+<td align="left">Gateway MPLS</td>
+<td align="left">192.168.5.1</td>
+<td>192.168.6.1</td>
+</tr>
+<tr>
+<td align="left">Gateway Internet</td>
+<td align="left">192.168.51</td>
+<td>192.168.6.1</td>
+</tr>
+<tr>
+<td align="left">Link Speed</td>
+<td align="left">MPLS – 100 Mbps  Internet – 20 Mbps</td>
+<td>MPLS – 10 Mbps  Internet – 2 Mbps</td>
+</tr>
+<tr>
+<td align="left">Route</td>
+<td align="left">添加到LAN的路由(192.168.7.0/24)<br />通过物理接口: G1/1 - 192.168.5.1<br />Configuration &gt; Virtual WAN &gt; Configuration Editor &gt;&gt;Connections&gt; DC-Site &gt;Routes。<br />                                                                                                                n/w address: 192.168.7.0/24,                                                                         service type: local                                                                                                   MCN gateway IP address: 192.168.5.1</td>
+<td>添加到LAN的路由(192.168.8.0/24）<br />通过物理接口:G1/1 - 192.168.6.1<br />Configuration &gt; Virtual WAN &gt; Configuration Editor &gt;Connections&gt; BR-Site &gt; Routes。<br />Client gateway IP address: 192.168.6.1</td>
+</tr>
+<tr>
+<td align="left">VLANs</td>
+<td align="left">None (default 0)</td>
+<td>None (default 0)</td>
+</tr>
+</tbody>
+</table>
+<h1 id="_3">试验目的</h1>
+<p><em>为了部落</em></p>
+<h1 id="_4">设备开箱预配置</h1>
+<p>MCN与Client设备都需初始化配置：登录设备以后，我们可以通过 management_ip 命令查看设备的管理 ip 地址，</p>
+<p><img alt="1.1" src="../../attach/SDWANinPBR.assets/1.1.jpg" /></p>
+<p>然后通过 set interface 192.168.1.150 255.255.0.0 192.168.1.1 命令将设备的管理 IP 地址改成与客户现网同一个网段。</p>
+<p><img alt="1.2" src="../../attach/SDWANinPBR.assets/1.2.jpg" /></p>
+<p>最后进行应用，设备的 ip 地址修改完成</p>
+<p><img alt="1.3" src="../../attach/SDWANinPBR.assets/1.3.jpg" /></p>
+<p><img alt="1.4" src="../../attach/SDWANinPBR.assets/1.4.jpg" /></p>
+<p>打开浏览器，在地址栏输入 https://192.168.1.150 进入 web 管理模式<br />
+Username：admin<br />
+Password: password</p>
+<p><img alt="1.5" src="../../attach/SDWANinPBR.assets/1.5-1532681802992.jpg" /></p>
+<h2 id="ntp">配置时区和NTP</h2>
+<p>配置 NTP 和时区</p>
+<p><img alt="1.6" src="../../attach/SDWANinPBR.assets/1.6.jpg" /></p>
+<h2 id="_5">检查网卡</h2>
+<h2 id="license">安装license</h2>
+<p><img alt="1.7" src="../../attach/SDWANinPBR.assets/1.7.jpg" /></p>
+<h2 id="_6">配置超时时间</h2>
+<p><img alt="2" src="../../attach/SDWANinPBR.assets/2.jpg" /></p>
+<h2 id="mcn">配置 MCN 模式</h2>
+<p><img alt="3" src="../../attach/SDWANinPBR.assets/3.jpg" /></p>
+<h2 id="_7">进入配置编辑器</h2>
+<p><img alt="4" src="../../attach/SDWANinPBR.assets/4.jpg" /></p>
+<h1 id="_8">测试平台</h1>
+<p>软件：9.3.3.21.651271<br />
+硬件：SD-WAN 410-100-SE</p>
+<h1 id="sdwan">SDWAN配置</h1>
+<h2 id="mcn_1">MCN配置</h2>
+<h3 id="site">新建site</h3>
+<p>点击“New”新建 会出现site选项 随后点击“+Site”来添加站点</p>
+<p><img alt="5" src="../../attach/SDWANinPBR.assets/5.jpg" /></p>
+<p>取站点名字 Site name:DC-site，设备型号 model：CB410（根据设备具体型号选择）,单击添加 add</p>
+<p><img alt="6" src="../../attach/SDWANinPBR.assets/6.jpg" /></p>
+<h3 id="_9">配置接口</h3>
+<p>选择新建的 DC-Site</p>
+<p><img alt="7" src="../../attach/SDWANinPBR.assets/7.jpg" /></p>
+<p>配置接口组，选择当前使用接口，bypass mde : fail to block ，为新建的接口配置名字 DC-WAN</p>
+<p><img alt="8" src="../../attach/SDWANinPBR.assets/8.jpg" /></p>
+<h3 id="ip">配置虚拟IP</h3>
+<p>配置虚拟接口 IP 地址，并关联虚拟接口（实际几条链路就创建个VIP）</p>
+<p><img alt="9" src="../../attach/SDWANinPBR.assets/9.jpg" /></p>
+<p><img alt="10" src="../../attach/SDWANinPBR.assets/10.jpg" /></p>
+<h3 id="wan-linkaccess-interface">添加WAN link，配置带宽，关联Access Interface</h3>
+<p>点击"WAN Links"后的“+”  新建 MPLS WAN 链路 DC-MPLS, 接入类型：private intranet</p>
+<p><img alt="11" src="../../attach/SDWANinPBR.assets/11-1532682219693.jpg" /></p>
+<p>开口DC-MPLS子标签Settings设置线路带宽 DC-MPLS 专线带宽为 100M</p>
+<p><img alt="12" src="../../attach/SDWANinPBR.assets/12.jpg" /></p>
+<p>创建 DC-MPLS WAN 路径接入接口</p>
+<p><img alt="13" src="../../attach/SDWANinPBR.assets/13.jpg" /></p>
+<p>重复之前操作点击"WAN Links" 后的“+” 创建 DC-INET WAN 链路</p>
+<p><img alt="14" src="../../attach/SDWANinPBR.assets/14.jpg" /></p>
+<p>DC-INET 链路的带宽设置 20M</p>
+<p><img alt="15" src="../../attach/SDWANinPBR.assets/15.jpg" /></p>
+<p>创建 DC-INET WAN 路径接入接口</p>
+<p><img alt="16" src="../../attach/SDWANinPBR.assets/16.jpg" /></p>
+<p>创建到内网的回指路由，（本次测试DC-Site端内部只有一条内网网段，如果 DC 内网有多个网段，需要创建多条回指路由）</p>
+<p><img alt="17" src="../../attach/SDWANinPBR.assets/17.jpg" /></p>
+<h3 id="connections">在Connections中检查路由可达性</h3>
+<h3 id="site_1">添加分支site</h3>
+<p>一个站点配置完成后，点击sites后的"+Add"创建分支站点 Branch-Site ,模式选择 client(默认识别，mcn有且仅有1个)</p>
+<p><img alt="18" src="../../attach/SDWANinPBR.assets/18-1532682275210.jpg" /></p>
+<h3 id="site_2">分支site配置接口</h3>
+<p><img alt="19" src="../../attach/SDWANinPBR.assets/19.jpg" /></p>
+<h3 id="siteip">分支site配置虚拟IP</h3>
+<p><img alt="20" src="../../attach/SDWANinPBR.assets/20.jpg" /></p>
+<h3 id="sitewan-linkaccess-interface">分支site添加分支WAN link，配置带宽，关联Access Interface</h3>
+<p>创建分支站点的 MPLS 线路</p>
+<p><img alt="21" src="../../attach/SDWANinPBR.assets/21.jpg" /></p>
+<p>创建分支站点 MPLS 线路带宽为 10M</p>
+<p><img alt="22" src="../../attach/SDWANinPBR.assets/22.jpg" /></p>
+<p>创建分支站点 MPLS 接入接口并关联VIP地址</p>
+<p><img alt="23" src="../../attach/SDWANinPBR.assets/23.jpg" /></p>
+<p>创建分支站点 INET 线路</p>
+<p><img alt="24" src="../../attach/SDWANinPBR.assets/24.jpg" /></p>
+<p>分支 INET 线路带宽 2M</p>
+<p><img alt="25" src="../../attach/SDWANinPBR.assets/25.jpg" /></p>
+<p>创建分支站点 INET 线路的接入接口，关联VIP地址</p>
+<p><img alt="26" src="../../attach/SDWANinPBR.assets/26.jpg" /></p>
+<p>同DC-Site一样在“routes”中创建内网的回路路由（192.168.8.0 ）</p>
+<h3 id="siteconnections">分支site，在Connections中检查路由可达性</h3>
+<h3 id="_10">启用虚拟路径</h3>
+<p>默认只有一条可以选路径，在Connections中DC site和bracnk site WAN link中，勾选“Use”</p>
+<p><img alt="27" src="../../attach/SDWANinPBR.assets/27.jpg" /></p>
+<p>同上，编辑 Branch-MPLS 的 Virtual Path 的属性，勾选 Use ，启用该 Virtual Path，</p>
+<p><img alt="28" src="../../attach/SDWANinPBR.assets/28.jpg" /></p>
+<h3 id="_11">手动创建另外一条虚拟路径</h3>
+<p>在Connections中DC-site -&gt;Virtual Paths -&gt; DC-Site-BR-Site-&gt;Paths 中添加单向MPLS路径，自动创建反向路径。</p>
+<p><img alt="29" src="../../attach/SDWANinPBR.assets/29.jpg" /></p>
+<p><strong>至此，网络部分基本配置完毕，折叠所有菜单，注意左下方 Audits：0 , 说明没有错误，配置正确。</strong></p>
+<p><img alt="30" src="../../attach/SDWANinPBR.assets/30.jpg" /></p>
+<h3 id="_12">保存配置</h3>
+<p><img alt="31" src="../../attach/SDWANinPBR.assets/31.jpg" /></p>
+<h3 id="export">Export 配置到<Change Management inbox></h3>
+<p>配置的导出，导出到 file download 是保存到外部，相当于做了个备份。</p>
+<p><img alt="32" src="../../attach/SDWANinPBR.assets/32.jpg" /></p>
+<h3 id="_13">激活配置</h3>
+<p>选择Change Management inbox保存在设备中</p>
+<p><img alt="33" src="../../attach/SDWANinPBR.assets/33.jpg" /></p>
+<p>在Change Management 菜单，点右下角Begin，配置生效</p>
+<p><img alt="34" src="../../attach/SDWANinPBR.assets/34.jpg" /></p>
+<h3 id="os">首次激活配置，必须需要升级OS版本</h3>
+<p>从官网下载正确的os版本，上传到设备；如果不想升级，下载相同的版本。如果当前你要升级设备，在官网下载的软件包上传到设备，软件和设备配置进行打包，下发到分支站点，选择 stage appliances</p>
+<p><img alt="35" src="../../attach/SDWANinPBR.assets/35.jpg" /></p>
+<p>设备 配置 传输到 到 100%， ，击 单击 next</p>
+<p><img alt="36" src="../../attach/SDWANinPBR.assets/36.jpg" /></p>
+<p>激活配置 activate staged</p>
+<p><img alt="37" src="../../attach/SDWANinPBR.assets/37.jpg" /></p>
+<p>激活完成以后，单击 Done</p>
+<p><img alt="38" src="../../attach/SDWANinPBR.assets/38.jpg" /></p>
+<h3 id="virtual-wan-service">启用Virtual WAN Service</h3>
+<p>提示 Citrix Virtual WAN Service 还处于 disabled（首次激活配置时，需要激活Virtual WAN Service，后续不需要重复激活。）</p>
+<p><img alt="39" src="../../attach/SDWANinPBR.assets/39.jpg" /></p>
+<p>在此 MCN 节点启用 Citrix Virtual WAN Service</p>
+<p><img alt="40" src="../../attach/SDWANinPBR.assets/40.jpg" /></p>
+<p>启用后</p>
+<p><img alt="41" src="../../attach/SDWANinPBR.assets/41.jpg" /></p>
+<h3 id="_14">导出配置文件</h3>
+<p>把导出配置包：到 Change Management 里，可以看到 DC-Site-DC-Site-CB410 配置已<br />
+经成功，配置信息显示在下方。同时看到 Branch-Site-Branch-Site-CB410 还处于 not<br />
+connected 状态，因为我们还没有部署。点 Branch-Site-Branch-Site-CB410 右边的<br />
+active</p>
+<p><img alt="42" src="../../attach/SDWANinPBR.assets/42.jpg" /></p>
+<p>点 Branch-Site-Branch-Site-CB410 右边的 active，导出配置包</p>
+<p><img alt="43" src="../../attach/SDWANinPBR.assets/43.jpg" /></p>
+<h2 id="client">client配置</h2>
+<h3 id="_15">分支首次需要上传配置文件</h3>
+<p>后期分支配置需要变更时，直接在MCN配置并激活即可，不需要分支设备上传配置文件。</p>
+<p><img alt="44" src="../../attach/SDWANinPBR.assets/44.jpg" /></p>
+<p>保存好配置包，我们将要把它导入到 Branch-Site 的设备中。</p>
+<p><img alt="45" src="../../attach/SDWANinPBR.assets/45.jpg" /></p>
+<h3 id="_16">分支，激活配置文件</h3>
+<p>单击 activate staged,激活配置</p>
+<p><img alt="46" src="../../attach/SDWANinPBR.assets/46.jpg" /></p>
+<p>这台 Branch Site 作为 Client 节点，因此无需 switch console</p>
+<p><img alt="51" src="../../attach/SDWANinPBR.assets/51.jpg" /></p>
+<p><img alt="47" src="../../attach/SDWANinPBR.assets/47.jpg" /></p>
+<p><img alt="48" src="../../attach/SDWANinPBR.assets/48.jpg" /></p>
+<p>至此，我们已经成功将配置导入到 Branch Site 的节点上了，如果有多个节点，一一导入。<br />
+等多个 Site 成功和 MCN 连接成功，将来，在 MCN 上做任何的配置改动，将不需要这样<br />
+导入导出，而是直接从 MCN 直接推送到每个相关的节点进行自动配置更新。</p>
+<h3 id="virtual-wan-service_1">启用Virtual WAN Service</h3>
+<p><img alt="49" src="../../attach/SDWANinPBR.assets/49.jpg" /></p>
+<h2 id="monitoring">查看Monitoring中路径的状态</h2>
+<p>所有路径建立成功。</p>
+<p><img alt="50" src="../../attach/SDWANinPBR.assets/50.jpg" /></p>
+<h1 id="_17">网络设备配置</h1>
+<h2 id="_18">检测路由可达性</h2>
+<p>OSPF 路由配置<br />
+ospf 1<br />
+area 0.0.0.0<br />
+network 192.168.2.0 0.0.0.255<br />
+network 192.168.4.0 0.0.0.255<br />
+network 192.168.5.0 0.0.0.255<br />
+network 192.168.7.0 0.0.0.255</p>
+<h2 id="_19">匹配业务流</h2>
+<p>acl 定义业务流量网段</p>
+<p>定义 ACL<br />
+acl number 3000<br />
+description LAN_TO_SD-WAN<br />
+rule 5 permit ip source 192.168.7.0 0.0.0.255</p>
+<h1 id="_20"></h1>
+<p>acl number 3001<br />
+description SD-WAN_TO_MPLS_LINK<br />
+rule 5 permit ip source 192.168.5.2 0</p>
+<h1 id="_21"></h1>
+<p>acl number 3002<br />
+description SDWAN_TO_INET<br />
+rule 5 permit ip source 192.168.5.3 0</p>
+<h2 id="_22">配置策略路由</h2>
+<h1 id="_23"></h1>
+<p>policy-based-route LAN_TO_SD-WAN permit node 10<br />
+if-match acl 3000<br />
+apply next-hop 192.168.5.2 track 123</p>
+<h1 id="_24"></h1>
+<p>policy-based-route SD-WAN_TO_WAN permit node 20<br />
+if-match acl 3001<br />
+apply next-hop 192.168.2.2 track 124</p>
+<h1 id="_25"></h1>
+<p>policy-based-route SD-WAN_TO_WAN permit node 30<br />
+if-match acl 3002<br />
+apply next-hop 192.168.4.2 track 125</p>
+<h2 id="_26">接口应用策略路由</h2>
+<p>确保应用到正确的接口</p>
+<h1 id="_27"></h1>
+<p>interface Vlan-interface4<br />
+ip address 192.168.5.1 255.255.255.0<br />
+ip policy-based-route LAN_TO_SD-WAN</p>
+<h1 id="_28"></h1>
+<p>interface Vlan-interface5<br />
+ip address 192.168.7.1 255.255.255.0<br />
+ip policy-based-route SD-WAN_TO_WAN</p>
+<h2 id="_29">策略路由与链路探测结合</h2>
+<p>确保某条链路不可达时，可以自动切换到其他链路。<br />
+两端设备死机时，两端同时下架，在不修改配置情况下，不影响原有业务流量。</p>
+<p>bfd echo-source-ip 192.168.5.1<br />
+track 123 bfd echo interface Vlan-interface4 remote ip 192.168.5.2 local ip 192.168.5.1<br />
+policy-based-route LAN_TO_SD-WAN permit node 10<br />
+if-match acl 3000<br />
+apply next-hop 192.168.5.2 track 123</p>
+<h2 id="traceroute">traceroute不显示路径解决办法</h2>
+<h3 id="h3c">H3C解决办法</h3>
+<p>ip unreachables enable<br />
+ip ttl-expires enable</p>
+<h2 id="pbr">PBR原理参考</h2>
+<p>http://www.docin.com/p-539754008.html</p>
+<p>https://wenku.baidu.com/view/f3518228915f804d2b16c191.html</p>
+  <div class="relation">
+    <h2>Related</h2>
+    <ul>
+    
+    <li><a href="/Coder/django.html">Django</a></li>
+    
+    </ul>
+  </div>
+    </div>
+    <div id="footer">
+      <span>
+        <p>Copyright © 2019 Edward.
+        Powered by <a href="http://simiki.org/" target="_blank">Simiki</a>.</p>
+        <p>Site Generated 2019-04-25 23:36:23</p>
+      </span>
+    </div>
+
+    
+    
+  </body>
+</html>

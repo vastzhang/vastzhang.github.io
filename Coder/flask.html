@@ -1,0 +1,118 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <link rel="Stylesheet" type="text/css" href="/static/css/style.css">
+    <link rel="Stylesheet" type="text/css" href="/static/css/tango.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="alternate" type="application/atom+xml" href="atom.xml" title="Atom feed">
+    <title>Flask - Edward Wiki</title>
+    <meta name="keywords" content="wiki,"/>
+    <meta name="description" content="Simiki is a simple web site."/>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  </head>
+
+  <body>
+    <div id="container">
+      
+<div id="header">
+  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;<a href="/#Coder">Coder</a>&nbsp;&#187;&nbsp;Flask
+    <span class="updated">Page Updated&nbsp;
+      2018-06-15 20:00
+    </span></div>
+</div>
+<div class="clearfix"></div>
+
+<div class="page_title">Flask</div>
+
+  <p>本来想用一个大而全的Django搞个网站，基本功能也都调通了，突然冒出一个区块链的东东...<br />
+看了好多资料，发现都是基于flash微框搞的，好奇之下看了看flask，发现框架和语法太简单了，，本想以后再学，但是dj突然报奇怪的错误，无法正常用了，于是立即弃D搞F。</p>
+<h1 id="flask">Flask环境安装</h1>
+<p>参考<br />
+<a href="https://www.jianshu.com/p/cc90a14856c5">从零开始用 Flask 搭建一个网站</a>。</p>
+<h1 id="mysqlflask-sqlachemypymysql">连接mysql，flask-sqlachemy使用pymysql</h1>
+<p>出行不能连接mysql的故障，按照如下处理：<br />
+在manager.py中添加</p>
+<div class="hlcode"><pre><span class="n">from</span> <span class="n">app</span><span class="p">.</span><span class="n">models</span> <span class="n">import</span> <span class="o">*</span> <span class="err">#一定要引入模型类否则可能出现无法使用</span><span class="n">db</span><span class="p">.</span><span class="n">create_all</span><span class="p">()</span>
+<span class="n">from</span> <span class="n">flask_migrate</span> <span class="n">import</span> <span class="n">Migrate</span><span class="p">,</span><span class="n">MigrateCommand</span> <span class="err">#</span><span class="n">flask</span> <span class="err">迁移数据</span>
+<span class="err">在（</span><span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="err">&#39;</span><span class="n">__main__</span><span class="err">&#39;</span><span class="o">:</span><span class="err">）前面添加：</span>
+
+<span class="cp">#创建数据库脚本</span>
+<span class="err">@</span><span class="n">manager</span><span class="p">.</span><span class="n">command</span>
+<span class="n">def</span> <span class="n">create_db</span><span class="p">()</span><span class="o">:</span>
+    <span class="n">db</span><span class="p">.</span><span class="n">create_all</span><span class="p">()</span>
+</pre></div>
+
+
+<p>然后返回控制台，输入：</p>
+<div class="hlcode"><pre><span class="n">python</span> <span class="n">manager</span><span class="p">.</span><span class="n">py</span> <span class="n">shell</span>
+<span class="n">from</span> <span class="n">app</span> <span class="n">import</span> <span class="n">db</span> 
+<span class="n">db</span><span class="p">.</span><span class="n">create_all</span><span class="p">()</span>
+</pre></div>
+
+
+<p>别用root登入mysql，会报错：</p>
+<div class="hlcode"><pre><span class="n">sqlalchemy</span><span class="p">.</span><span class="n">exc</span><span class="p">.</span><span class="n">OperationalError</span><span class="o">:</span> <span class="p">(</span><span class="n">pymysql</span><span class="p">.</span><span class="n">err</span><span class="p">.</span><span class="n">OperationalError</span><span class="p">)</span> <span class="p">(</span><span class="mi">1045</span><span class="p">,</span> <span class="s">&quot;Access denied for user &#39;root&#39;@&#39;localhost&#39; (using password: YES)&quot;</span><span class="p">)</span>
+</pre></div>
+
+
+<p>新建一个用户，修改config.py中的SQLALCHEMY_DATABASE_URI即可。成功创建数据库的新表。</p>
+<p><a href="https://blog.csdn.net/qq850482461/article/details/75287254">flask_script下使用db.create_all()不能创建数据库的解决办法</a></p>
+<p>[sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (1045, "Access denied for user 'root'@'localhost' (using password: YES)") ]（https://stackoverflow.com/questions/10181344/mysql-exceptions-operationalerror-1045-access-denied-for-user-rootlocalh）</p>
+<p>搞了好几天了，，，苍天啊，大地啊。。。</p>
+<h1 id="view-mysql">view 调用mysql数据</h1>
+<p>view.py需要引入 modules.py里面的class，否则无法正常运行。</p>
+<h2 id="_1">无法添加用户</h2>
+<p>web可以正常访问，但是无法提交数据。add user时，提示无法访问这个请求。<br />
+    问题已经解决，是因为 User模块调用错误。<br />
+     newobj = User(username=p_user, email=p_email, password=p_password)</p>
+<h1 id="debugjs-css-404static">debug提示访问.js  .css   404错误时，请添加static文件夹路径。</h1>
+<div class="hlcode"><pre><span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+<span class="o">**</span><span class="n">app</span><span class="p">.</span><span class="n">_static_folder</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">to</span> <span class="n">your</span> <span class="k">static</span> <span class="n">directory</span><span class="o">&gt;**</span>
+</pre></div>
+
+
+<h1 id="_2">调用模版</h1>
+<p><a href="https://blog.csdn.net/captain811/article/details/79682768">flask使用bootstrap模版必读</a></p>
+<h1 id="_3">附件：其他参考资料</h1>
+<p>我的环境是python3.6，flask1.0.2。在连接mysql时参考<a href="http://www.cnblogs.com/diaosir/p/6351721.html">flask扩展模块flask-sqlachemy 的使用---mysql数据库</a>.</p>
+<p>按照这个步骤操作完，发现web可以正常响应（返回状态200），但是web无法显示内容。需要修改一下部分：<br />
+    在app/config.py中修改一下:</p>
+<div class="hlcode"><pre><span class="err">把：</span>
+<span class="n">SQLALCHEMY_DATABASE_URI</span> <span class="o">=</span> <span class="err">&#39;</span><span class="n">mysql</span><span class="o">+</span><span class="n">pymysql</span><span class="o">:</span><span class="c1">//root:xxxxx@localhost:3306/test?charset=utf8&#39;</span>
+
+<span class="err">替换为：</span>
+<span class="n">SQLALCHEMY_DATABASE_URI</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">environ</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="err">&#39;</span><span class="n">DEV_DATABASE_URL</span><span class="sc">&#39;,&#39;</span><span class="n">mysql</span><span class="o">+</span><span class="n">pymysql</span><span class="o">:</span><span class="c1">//root:root123@localhost:3306/DjangoDB?charset=utf8&#39;)</span>
+</pre></div>
+
+
+<p>再次访问，web可以正常显示内容。</p>
+<p>了解详细的连接mysql，可以参考<a href="https://www.jianshu.com/p/7e32074e4fad">flask+pymysql操作MySQL数据库</a><br />
+<a href="https://www.jianshu.com/p/4bb97fe23272">flask+pymysql操作MySQL数据库（下）</a></p>
+<p>#python3 连接mysql#<br />
+<a href="https://www.jianshu.com/p/a7f56066f0c1">python3  Flask SQLAlchemy 操作Mysql数据库</a>   </p>
+<h2 id="_4"></h2>
+<p><a href="https://www.cnblogs.com/mosson/p/6962526.html">python3.5+flask+mysql</a></p>
+  <div class="relation">
+    <h2>Related</h2>
+    <ul>
+    
+    <li><a href="/Coder/Flask   Python关键点.html">Flask Python</a></li>
+    
+    <li><a href="/Coder/django.html">Django</a></li>
+    
+    </ul>
+  </div>
+    </div>
+    <div id="footer">
+      <span>
+        <p>Copyright © 2019 Edward.
+        Powered by <a href="http://simiki.org/" target="_blank">Simiki</a>.</p>
+        <p>Site Generated 2019-04-25 23:36:23</p>
+      </span>
+    </div>
+
+    
+    
+  </body>
+</html>

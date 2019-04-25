@@ -1,0 +1,364 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <link rel="Stylesheet" type="text/css" href="/static/css/style.css">
+    <link rel="Stylesheet" type="text/css" href="/static/css/tango.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="alternate" type="application/atom+xml" href="atom.xml" title="Atom feed">
+    <title>Kubernetes网络初探 - Edward Wiki</title>
+    <meta name="keywords" content="wiki,"/>
+    <meta name="description" content="Simiki is a simple web site."/>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  </head>
+
+  <body>
+    <div id="container">
+      
+<div id="header">
+  <div class="post-nav"><a href="/">Home</a>&nbsp;&#187;&nbsp;Kubernetes网络初探
+    <span class="updated">Page Updated&nbsp;
+      2019-04-25 21:30
+    </span></div>
+</div>
+<div class="clearfix"></div>
+
+<div class="page_title">Kubernetes网络初探</div>
+
+  <div class="toc"><span class="toctitle">Table of Contents</span><ul>
+<li><a href="#kubernetes">深入浅出Kubernetes网络：容器网络初探</a><ul>
+<li><a href="#_1">前言</a><ul>
+<li><a href="#network-namespace">Network Namespace</a></li>
+<li><a href="#vethvirtual-ethernet-device">vEth（Virtual Ethernet Device）</a></li>
+<li><a href="#dockerkubernetes">Docker与Kubernetes</a><ul>
+<li><a href="#docker">Docker下的容器网络</a></li>
+<li><a href="#kubernetes_1">加入Kubernetes后的容器网络</a></li>
+</ul>
+</li>
+<li><a href="#kubernetes_2">Kubernetes跨集群的网络连接</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+<h1 id="kubernetes">深入浅出Kubernetes网络：容器网络初探</h1>
+<p><strong>Kubernetes网络全解：机制、方法、实操的超强指南</strong></p>
+<h2 id="_1">前言</h2>
+<p>随着云计算的兴起，各大平台之争也落下了帷幕，Kubernetes作为后起之秀已经成为了事实上的PaaS平台标准，而网络又是云计算环境当中最复杂的部分，总是让人琢磨不透。本文尝试着围绕在Kubernetes环境当中同一个节点（work node）上的Pod之间是如何进行网络通信的这个问题进行展开，暂且不考虑跨节点网络通信的情况。</p>
+<h3 id="network-namespace"><strong>Network Namespace</strong></h3>
+<ol>
+<li>
+<p><strong>Namespace</strong><br />
+提到容器就不得不提起容器的核心底层技术Namespace，Namespace为Linux内核当中提供的一种隔离机制，最初在2002年引入到Linux 2.4.19当中，且只有Mount Namespace用于文件系统隔离。截止目前，Linux总共提供了7种Namespace（since Linux 4.6），系统当中运行的每一个进程都与一个Namespace相关联，且该进程只能看到和使用该Namespace下的资源。可以简单将Namespace理解为操作系统对进程实现的一种“障眼法”，比如通过UTS Namespace可以实现让运行在同一台机器上的进程看到不同的Hostname。正是由于Namespace开创性地隔离方式才让容器的实现得以变为可能，才能让我们的软件真正地实现“build once, running everywhere”。<br />
+<img alt="" src="../attach/K8S/0.png" /></p>
+</li>
+<li>
+<p><strong>Network Namespace</strong><br />
+Network Namespace是Linux 2.6.24才开始引入的，直到Linux 2.6.29才完成的特性。Network Namespace实际上实现的是对网络栈的虚拟化，且在创建出来时默认只有一个回环网络接口lo，每一个网络接口（不管是物理接口还是虚拟化接口）都只能存在于一个Network Namespace当中，但可以在不同的Network Namespace之间切换，每一个Network Namespace都有自己独立的IP地址、路由表、防火墙以及套接字列表等网络相关资源。当删除一个Network Namespace时，其内部的网络资源（网路接口等）也会同时被删掉，而物理接口则会被切换回之前的Network Namespace当中。<br />
+由此可以知道不同的两个Network Namespace在网络上是相互隔离的，即不能够直接进行通信，就好比两个相互隔离的局域网之间不能直接通信，那么通过Network Namespace隔离后的容器是如何实现与外部进行通信的呢？</p>
+</li>
+<li>
+<p><strong>容器与Pod</strong><br />
+在Kubernetes的定义当中，Pod为一组不可分离的容器，且共享同一个Network Namespace，故不存在同一个Pod当中容器间网络通信的问题，对于同一个Pod当中的容器来讲，通过Localhost即可与其他的容器进行网络通信。<br />
+所以同一个节点上的两个Pod如何进行网络通信的问题可以转变为，同一个节点上的两个容器如何进行网络通信。</p>
+</li>
+<li>
+<p><strong>Namespace实操</strong><br />
+在回答上面提出的Network Namespace网络通信的问题前，我们先来做一些简单的命令行操作，先对Namespace有一个感性地认识，实验环境如下： <br />
+<img alt="" src="../attach/K8S/1.png" /></p>
+<p>通过命令lsns可以查看到宿主机上所有的Namespace（注意需要使用root用户执行，否则可能会出现有些Namespace看不到的情况）： <br />
+<img alt="" src="../attach/K8S/2.png" /></p>
+<p>lsns默认会输出所有可以看到的Namespace，简单解释一下lsns命令各个输出列的含义：<br />
+<img alt="" src="../attach/K8S/3.png" /></p>
+<p>与Network Namespace相关性较强的还有另外一个命令 ip netns，主要用于持久化命名空间的管理，包括Network Namespace的创建、删除以和配置等。 ip netns命令在创建Network Namespace时默认会在/var/run/netns目录下创建一个bind mount的挂载点，从而达到持久化Network Namespace的目的，即允许在该命名空间当中没有进程的情况下依然保留该命名空间。Docker当中由于缺少了这一步，玩过Docker的同学就会发现通过Docker创建容器后并不能在宿主机上通过 ip netns查看到相关的Network Namespace（这个后面会讲怎么才能够看到，稍微小操作一下就行）。</p>
+<p>与Network Namespace相关操作命令：</p>
+<div class="hlcode"><pre><span class="nx">ip</span> <span class="nx">netns</span> <span class="nb">add</span>  <span class="o">&lt;</span><span class="nx">namespace</span> <span class="nb">name</span><span class="o">&gt;</span> <span class="err">#</span> <span class="nx">添加network</span> <span class="nx">namespace</span>
+<span class="nx">ip</span> <span class="nx">netns</span> <span class="nb">list</span>  <span class="err">#</span> <span class="nx">查看Network</span> <span class="nx">Namespace</span>
+<span class="nx">ip</span> <span class="nx">netns</span> <span class="nb">delete</span> <span class="o">&lt;</span><span class="nx">namespace</span> <span class="nb">name</span><span class="o">&gt;</span> <span class="err">#</span> <span class="nx">删除Network</span> <span class="nx">Namespace</span>
+<span class="nx">ip</span> <span class="nx">netns</span> <span class="nx">exec</span> <span class="o">&lt;</span><span class="nx">namespace</span> <span class="nb">name</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="nb">command</span><span class="o">&gt;</span> <span class="err">#</span> <span class="nx">进入到Network</span> <span class="nx">Namespace当中执行命令</span>
+</pre></div>
+
+
+<p>创建名为netA的Network Namespace： <br />
+<img alt="" src="../attach/K8S/4.png" /></p>
+<p>查看创建的Network Namespace： <br />
+<img alt="" src="../attach/K8S/5.png" /></p>
+<p>可以看到Network Namespace netA当中仅有一个环回网络接口lo，且有独立的路由表（为空）。</p>
+<p>宿主机（root network namespace）上有网络接eth0（10.10.88.170）和eth1（172.16.130.164），此时可以直接ping通IP 172.16.130.164。<br />
+<img alt="" src="../attach/K8S/6.png" /></p>
+<p>尝试将root network namespace当中的eth0接口添加到network namespce netA当中：</p>
+<div class="hlcode"><pre><span class="n">ip</span> <span class="n">link</span> <span class="n">set</span> <span class="n">dev</span> <span class="n">eth0</span> <span class="n">netns</span> <span class="n">netA</span>
+</pre></div>
+
+
+<p><img alt="" src="../attach/K8S/7.png" /></p>
+<p>将宿主机上的网络接口eth0（10.10.88.170）加入到网络命名空间netA后：</p>
+<div class="hlcode"><pre><span class="mf">1.</span> <span class="err">宿主机上看不到</span><span class="n">eth0</span><span class="err">网络接口了（同一时刻网络接口只能在一个</span><span class="n">Network</span> <span class="n">Namespace</span><span class="err">）</span>
+<span class="mf">2.</span> <span class="n">netA</span> <span class="n">network</span> <span class="n">namespace</span><span class="err">里面无法</span><span class="n">ping</span><span class="err">通</span><span class="n">root</span> <span class="n">namespace</span><span class="err">当中的</span><span class="n">eth1</span><span class="err">（网络隔离）</span>
+</pre></div>
+
+
+<p>从上面的这些操作我们只是知道了Network Namespace的隔离性，但仍然无法达到我们想要的结果，即让两个容器或者说两个不同的Network Namespace进行网络通信。在真实的生活场景中，当我们要连接同一个集团两个相距千里的分公司的局域网时，我们有3种解决方案：第一种是对数据比较随意的，直接走公网连接，但存在网络安全的问题。第二种是不差钱的，直接拉一根专线将两个分公司的网络连接起来，这样虽然远隔千里，但仍然可以处于一个网络当中。另外一种是兼顾网络安全集和性价比的VPN连接，但存在性能问题。很显然，不管是哪一种方案都需要有一根“线”将两端连接起来，不管是虚拟的VPN还是物理的专线。</p>
+</li>
+</ol>
+<h3 id="vethvirtual-ethernet-device"><strong>vEth（Virtual Ethernet Device）</strong></h3>
+<p>前面提到了容器通过Network Namespace进行网络隔离，但是又由于Network Namespace的隔离导致两个不同的Network Namespace无法进行通信，这个时候我们联想到了实际生活场景中连接一个集团的两个分公司局域网的处理方式。实际上Linux当中也存在类似像网线一样的虚拟设备vEth（此时是不是觉得Linux简直无所不能？），全称为Virtual Ethernet Device，是一种虚拟的类似于以太网络的设备。</p>
+<p>vEth有以下几个特点：</p>
+<blockquote>
+<p>vEth作为一种虚拟以太网络设备，可以连接两个不同的Network Namespace。</p>
+<p>vEth总是<strong>成对创建</strong>，所以一般叫veth pair。（因为没有只有一头的网线）。</p>
+<p>vEth当中一端收到数据包后另一端也会立刻收到。</p>
+<p>可以通过ethtool找到vEth的对端接口。（注意后面会用到）</p>
+</blockquote>
+<p>理解了以上几点对于我们后面理解容器间的网络通信就容易多了。</p>
+<p><strong>vEth实操</strong><br />
+创建vEth命令格式：</p>
+<div class="hlcode"><pre><span class="n">ip</span> <span class="n">link</span> <span class="n">add</span> <span class="o">&lt;</span><span class="n">veth</span> <span class="n">name</span><span class="o">&gt;</span> <span class="n">type</span> <span class="n">veth</span> <span class="n">peer</span> <span class="n">name</span> <span class="o">&lt;</span><span class="n">veth</span> <span class="n">peer</span> <span class="n">name</span><span class="o">&gt;</span>
+</pre></div>
+
+
+<p>创建一对vEth，创建名为veth0A，且对端为veth0B的vEth设备。<br />
+<img alt="" src="../attach/K8S/8.png" /><br />
+可以看到root network namespace当中多出来了两个网络接口veth0A和veth0B，网络接口名称@后面的接的正是对端的接口名称。</p>
+<p>创建Network Namespace netA和netB：</p>
+<div class="hlcode"><pre><span class="n">ip</span> <span class="n">netns</span> <span class="n">add</span> <span class="n">netA</span>
+<span class="n">ip</span> <span class="n">netns</span> <span class="n">add</span> <span class="n">netB</span>
+</pre></div>
+
+
+<p><img alt="" src="../attach/K8S/9.png" /></p>
+<p>分别将接口veth0A加入到netA，将接口veth0B加入到netB：</p>
+<div class="hlcode"><pre><span class="n">ip</span> <span class="n">link</span> <span class="n">set</span> <span class="n">veth0A</span> <span class="n">netns</span> <span class="n">netA</span>
+<span class="n">ip</span> <span class="n">link</span> <span class="n">set</span> <span class="n">veth0B</span> <span class="n">netns</span> <span class="n">netB</span>
+</pre></div>
+
+
+<p><img alt="" src="../attach/K8S/10.png" /> <br />
+这个时候通过ip link查看宿主机（root network namespace）网络接口时可以发现，已经看不到接口veth0A和veth0B了（同一时刻一个接口只能处于一个Network Namespace下面）。</p>
+<p>再分别到netA和netB两个Network Namespace当中去查看，可以看到两个Network Namespace当中都多了一个网络接口。<br />
+<img alt="" src="../attach/K8S/11.png" />   </p>
+<p>分别拉起两个网络接口并配上IP，这里将为veth0A配置IP 192.168.100.1，veth0B配置IP 192.168.100.2：<br />
+<img alt="" src="../attach/K8S/12.png" /> <br />
+<img alt="" src="../attach/K8S/13.png" />   </p>
+<p><img alt="" src="../attach/K8S/14.png" /> <br />
+<img alt="" src="../attach/K8S/15.png" />   </p>
+<p>测试通过veth pair连接的两个Network Namespace netA和netB之间的网络连接。</p>
+<p>在netA（192.168.100.1）当中ping netB（192.168.100.2）： <br />
+<img alt="" src="../attach/K8S/16.png" />   </p>
+<p>在netB（192.168.100.2）当中ping netA（192.168.100.1）： <br />
+<img alt="" src="../attach/K8S/17.png" />   </p>
+<p>可以发现netA跟netB这两个Network Namespace在通过veth pair连接后已经可以进行正常的网络通信了。</p>
+<p>解决了容器Network Namespace隔离的问题，这个时候有云计算经验或者熟悉OpenStack和ZStack的同学就会发现，现在的场景跟虚拟机之间的网络互联是不是简直一模一样了？</p>
+<p>vEth作为一个二层网络设备，当需要跟别的网络设备相连时该怎么处理呢？在现实生活场景当中我们会拿一个交换机将不同的网线连接起来。实际上在虚拟化场景下也是如此，Linux Bridge和Open vSwith（OVS）是当下比较常用的两种连接二层网络的解决方案，而Docker当中采用的是Linux Bridge</p>
+<h3 id="dockerkubernetes"><strong>Docker与Kubernetes</strong></h3>
+<p>Kubernetes作为一个容器编排平台，在容器引擎方面既可以选择Docker也可以选择rkt，这里直接分别通过Docker和Kubernetes创建容器来进行简单比对。 Kubernetes在创建Pod时首先会创建一个pause容器，它的唯一作用就是保留和占据一个被Pod当中所有容器所共享的网络命名空间（Network Namespace），就这样，一个Pod IP并不会随着Pod当中的一个容器的起停而改变。</p>
+<h4 id="docker"><strong>Docker下的容器网络</strong></h4>
+<p>我们先来看一下在没有Kubernetes的情况下是什么样子的。在Docker启动的时候默认会创建一个名为docker0的网桥，且默认配置下采用的网络段为172.17.0.0/16，每一个在该节点上创建的容器都会被分配一个在该网段下的IP。容器通过连接到docker0上进行相互通信。</p>
+<p>手动创建两个容器：</p>
+<div class="hlcode"><pre><span class="n">docker</span> <span class="n">run</span> <span class="o">-</span> <span class="n">it</span> <span class="o">--</span> <span class="n">name</span> <span class="n">testA</span> <span class="n">busybox</span> <span class="n">sh</span>
+<span class="n">docker</span> <span class="n">run</span> <span class="o">-</span> <span class="n">it</span> <span class="o">--</span> <span class="n">name</span> <span class="n">testB</span> <span class="n">busybox</span> <span class="n">sh</span>
+</pre></div>
+
+
+<p>查看网容器testA络接口状况： <br />
+<img alt="" src="../attach/K8S/18.png" /></p>
+<p>查看容器testB络接口状况： <br />
+<img alt="" src="../attach/K8S/19.png" /></p>
+<p>查看网桥状态： <br />
+<img alt="" src="../attach/K8S/20.png" /><br />
+可以发现docker0上面已经连接了两个虚拟网络接口（vEth）。</p>
+<p>在docker0上通过tcpdump抓包：</p>
+<div class="hlcode"><pre><span class="n">tcpdump</span> <span class="o">-</span><span class="n">n</span> <span class="o">-</span><span class="n">i</span> <span class="n">docker0</span>
+</pre></div>
+
+
+<p>可以发现容器testA和容器testB正是通过docker0网桥进行网络包转发的。</p>
+<h4 id="kubernetes_1"><strong>加入Kubernetes后的容器网络</strong></h4>
+<p>其实加入Kubernetes后本质上容器网络通信模式并没有发生变更，但Kubernetes出于网络地址规划的考虑，重新创建了一个网桥cni0用于取代docker0，来负责本节点上网络地址的分配，而实际的网络段管理由Flannel处理。</p>
+<p>下面还是以创建2个运行BusyBox镜像的Pod作为例子进行说明。</p>
+<p>先给Kubernetes集群当中的两个work node打上label以方便将Pod调度到相同的节点上面进行测试：</p>
+<div class="hlcode"><pre><span class="err">`[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span># kubectl get node --show-labels
+NAME STATUS ROLES AGE VERSION LABELS
+10-10-88-170 Ready <span class="nt">&lt;none&gt;</span> 47d v1.10.5-28+187e1312d40a02 beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=10-10-88-170
+10-10-88-192 Ready master 47d v1.10.5-28+187e1312d40a02 beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=10-10-88-192,node-role.kubernetes.io/master=
+10-10-88-195 Ready <span class="nt">&lt;none&gt;</span> 47d v1.10.5-28+187e1312d40a02 beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=10-10-88-195
+<span class="cp">[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span>#
+<span class="cp">[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span># kubectl label --overwrite node 10-10-88-170 host=node1node &quot;10-10-88-170&quot; labeled
+<span class="cp">[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span>#
+<span class="cp">[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span># kubectl label --overwrite node 10-10-88-195 host=node2node &quot;10-10-88-195&quot; labeled
+<span class="cp">[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span>#
+<span class="cp">[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span># kubectl get node --show-labels
+NAME STATUS ROLES AGE VERSION LABELS
+10-10-88-170 Ready <span class="nt">&lt;none&gt;</span> 47d v1.10.5-28+187e1312d40a02 beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,host=node1,kubernetes.io/hostname=10-10-88-170
+10-10-88-192 Ready master 47d v1.10.5-28+187e1312d40a02 beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=10-10-88-192,node-role.kubernetes.io/master=
+10-10-88-195 Ready <span class="nt">&lt;none&gt;</span> 47d v1.10.5-28+187e1312d40a02 beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,host=node2,kubernetes.io/hostname=10-10-88-195
+<span class="cp">[</span><span class="nb">root</span><span class="p">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="nx">network</span><span class="cp">]</span>#
+</pre></div>
+
+
+<p>`</p>
+<p>创建两个Pod并通过添加nodeSelector使其调度到同一个节点（host1）。<br />
+编辑Pod的yaml配置文件：</p>
+<div class="hlcode"><pre><span class="err">`</span><span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span> <span class="n">ls</span>
+<span class="n">busybox1</span><span class="p">.</span><span class="n">yaml</span> <span class="n">busybox2</span><span class="p">.</span><span class="n">yaml</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span> <span class="n">cat</span> <span class="n">busybox1</span><span class="p">.</span><span class="n">yaml</span>
+<span class="nl">apiVersion:</span> <span class="n">v1</span>
+<span class="nl">kind:</span> <span class="n">Pod</span>
+<span class="nl">metadata:</span>
+    <span class="nl">name:</span> <span class="n">busybox1</span>
+    <span class="nl">labels:</span>
+        <span class="nl">app:</span> <span class="n">busybox1</span>
+<span class="nl">spec:</span>
+    <span class="nl">containers:</span>
+        <span class="o">-</span> <span class="n">name</span><span class="o">:</span> <span class="n">busybox1</span>
+        <span class="nl">image:</span> <span class="n">busybox</span>
+        <span class="nl">command:</span> <span class="p">[</span><span class="err">&#39;</span><span class="n">sh</span><span class="err">&#39;</span><span class="p">,</span> <span class="err">&#39;</span><span class="o">-</span><span class="n">c</span><span class="err">&#39;</span><span class="p">,</span> <span class="err">&#39;</span><span class="n">sleep</span> <span class="mi">100000</span><span class="err">&#39;</span><span class="p">]</span>
+    <span class="nl">nodeSelector:</span>
+        <span class="nl">host:</span> <span class="n">node1</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span> <span class="n">cat</span> <span class="n">busybox2</span><span class="p">.</span><span class="n">yaml</span>
+<span class="nl">apiVersion:</span> <span class="n">v1kind</span><span class="o">:</span> <span class="n">Pod</span>
+<span class="nl">metadata:</span>
+    <span class="nl">name:</span> <span class="n">busybox2</span>
+    <span class="nl">labels:</span>
+        <span class="nl">app:</span> <span class="n">busybox2</span>
+<span class="nl">spec:</span>
+    <span class="nl">containers:</span>
+        <span class="o">-</span> <span class="n">name</span><span class="o">:</span> <span class="n">busybox2</span>
+        <span class="nl">image:</span> <span class="n">busybox</span>
+        <span class="nl">command:</span> <span class="p">[</span><span class="err">&#39;</span><span class="n">sh</span><span class="err">&#39;</span><span class="p">,</span> <span class="err">&#39;</span><span class="o">-</span><span class="n">c</span><span class="err">&#39;</span><span class="p">,</span> <span class="err">&#39;</span><span class="n">sleep</span> <span class="mi">200000</span><span class="err">&#39;</span><span class="p">]</span>
+    <span class="nl">nodeSelector:</span>
+    <span class="nl">host:</span> <span class="n">node1</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span>
+</pre></div>
+
+
+<p>`<br />
+基于yaml文件创建Pod：</p>
+<div class="hlcode"><pre><span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span> <span class="n">kubectl</span> <span class="n">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">busybox1</span><span class="p">.</span><span class="n">yaml</span>
+
+<span class="n">pod</span> <span class="s">&quot;busybox1&quot;</span> <span class="n">created</span>
+
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span> <span class="n">kubectl</span> <span class="n">create</span> <span class="o">-</span><span class="n">f</span> <span class="n">busybox2</span><span class="p">.</span><span class="n">yaml</span>
+
+<span class="n">pod</span> <span class="s">&quot;busybox2&quot;</span> <span class="n">created</span>
+
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span> <span class="n">kubectl</span> <span class="n">get</span> <span class="n">pod</span> <span class="o">-</span><span class="n">o</span> <span class="n">wide</span>
+
+<span class="n">NAME</span> <span class="n">READY</span> <span class="n">STATUS</span> <span class="n">RESTARTS</span> <span class="n">AGE</span> <span class="n">IP</span> <span class="n">NODE</span>
+
+<span class="n">busybox1</span> <span class="mi">1</span><span class="o">/</span><span class="mi">1</span> <span class="n">Running</span> <span class="mi">0</span> <span class="mi">33</span><span class="n">s</span> <span class="mf">10.244.2.207</span> <span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">170</span>
+
+<span class="n">busybox2</span> <span class="mi">1</span><span class="o">/</span><span class="mi">1</span> <span class="n">Running</span> <span class="mi">0</span> <span class="mi">20</span><span class="n">s</span> <span class="mf">10.244.2.208</span> <span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">170</span>
+
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">192</span> <span class="n">network</span><span class="p">]</span><span class="err">#</span>
+</pre></div>
+
+
+<p>可以看到两个Pod都按照预期调度到了10-10-88-170这个节点上面。</p>
+<p>通过IP a命令可以看到在Pod的宿主机上多出来了2个vethXXX样式的网络接口：</p>
+<div class="hlcode"><pre><span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">170</span> <span class="o">~</span><span class="p">]</span><span class="err">#</span> <span class="n">ip</span> <span class="n">a</span>
+<span class="mi">1</span><span class="o">:</span> <span class="n">lo</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">LOOPBACK</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">65536</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">state</span> <span class="n">UNKNOWN</span> <span class="n">qlen</span> <span class="mi">1</span>
+<span class="n">link</span><span class="o">/</span><span class="n">loopback</span> <span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span> <span class="n">brd</span> <span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span><span class="o">:</span><span class="mo">00</span>
+<span class="n">inet</span> <span class="mf">127.0.0.1</span><span class="o">/</span><span class="mi">8</span> <span class="n">scope</span> <span class="n">host</span> <span class="n">lo</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="n">inet6</span> <span class="o">::</span><span class="mi">1</span><span class="o">/</span><span class="mi">128</span> <span class="n">scope</span> <span class="n">host</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">2</span><span class="o">:</span> <span class="n">eth0</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1500</span> <span class="n">qdisc</span> <span class="n">pfifo_fast</span> <span class="n">state</span> <span class="n">UP</span> <span class="n">qlen</span> <span class="mi">1000</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="n">fa</span><span class="o">:</span><span class="mi">35</span><span class="o">:</span><span class="n">b6</span><span class="o">:</span><span class="mi">5</span><span class="n">e</span><span class="o">:</span><span class="n">ac</span><span class="o">:</span><span class="mo">00</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span>
+<span class="n">inet</span> <span class="mf">10.10.88.170</span><span class="o">/</span><span class="mi">24</span> <span class="n">brd</span> <span class="mf">10.10.88.255</span> <span class="n">scope</span> <span class="n">global</span> <span class="n">eth0</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="n">f835</span><span class="o">:</span><span class="n">b6ff</span><span class="o">:</span><span class="n">fe5e</span><span class="o">:</span><span class="n">ac00</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">3</span><span class="o">:</span> <span class="n">eth1</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1500</span> <span class="n">qdisc</span> <span class="n">pfifo_fast</span> <span class="n">state</span> <span class="n">UP</span> <span class="n">qlen</span> <span class="mi">1000</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="n">fa</span><span class="o">:</span><span class="mi">88</span><span class="o">:</span><span class="mi">2</span><span class="n">a</span><span class="o">:</span><span class="mi">44</span><span class="o">:</span><span class="mi">2</span><span class="n">b</span><span class="o">:</span><span class="mo">01</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span>
+<span class="n">inet</span> <span class="mf">172.16.130.164</span><span class="o">/</span><span class="mi">24</span> <span class="n">brd</span> <span class="mf">172.16.130.255</span> <span class="n">scope</span> <span class="n">global</span> <span class="n">eth1</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="n">f888</span><span class="o">:</span><span class="mi">2</span><span class="n">aff</span><span class="o">:</span><span class="n">fe44</span><span class="o">:</span><span class="mi">2</span><span class="n">b01</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">4</span><span class="o">:</span> <span class="n">docker0</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">NO</span><span class="o">-</span><span class="n">CARRIER</span><span class="p">,</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1500</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">state</span> <span class="n">DOWN</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="mo">02</span><span class="o">:</span><span class="mi">42</span><span class="o">:</span><span class="mi">43</span><span class="o">:</span><span class="n">a1</span><span class="o">:</span><span class="n">fc</span><span class="o">:</span><span class="n">ad</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span>
+<span class="n">inet</span> <span class="mf">172.17.0.1</span><span class="o">/</span><span class="mi">16</span> <span class="n">scope</span> <span class="n">global</span> <span class="n">docker0</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">5</span><span class="o">:</span> <span class="n">flannel</span><span class="mf">.1</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1450</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">state</span> <span class="n">UNKNOWN</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="mi">0</span><span class="n">e</span><span class="o">:</span><span class="n">c4</span><span class="o">:</span><span class="mi">2</span><span class="n">c</span><span class="o">:</span><span class="mi">84</span><span class="o">:</span><span class="n">a5</span><span class="o">:</span><span class="n">ea</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span>
+<span class="n">inet</span> <span class="mf">10.244.2.0</span><span class="o">/</span><span class="mi">32</span> <span class="n">scope</span> <span class="n">global</span> <span class="n">flannel</span><span class="mf">.1</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="n">cc4</span><span class="o">:</span><span class="mi">2</span><span class="n">cff</span><span class="o">:</span><span class="n">fe84</span><span class="o">:</span><span class="n">a5ea</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">6</span><span class="o">:</span> <span class="n">cni0</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1450</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">state</span> <span class="n">UP</span> <span class="n">qlen</span> <span class="mi">1000</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="mi">0</span><span class="n">a</span><span class="o">:</span><span class="mi">58</span><span class="o">:</span><span class="mi">0</span><span class="n">a</span><span class="o">:</span><span class="n">f4</span><span class="o">:</span><span class="mo">02</span><span class="o">:</span><span class="mo">01</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span>
+<span class="n">inet</span> <span class="mf">10.244.2.1</span><span class="o">/</span><span class="mi">24</span> <span class="n">scope</span> <span class="n">global</span> <span class="n">cni0</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="n">f0a0</span><span class="o">:</span><span class="mi">7</span><span class="n">dff</span><span class="o">:</span><span class="n">feec</span><span class="o">:</span><span class="mf">3ff</span><span class="n">d</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">9</span><span class="o">:</span> <span class="n">veth2a69de99</span><span class="err">@</span><span class="n">if3</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1450</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">master</span> <span class="n">cni0</span> <span class="n">state</span> <span class="n">UP</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="mi">86</span><span class="o">:</span><span class="mi">70</span><span class="o">:</span><span class="mi">76</span><span class="o">:</span><span class="mf">4f</span><span class="o">:</span><span class="n">de</span><span class="o">:</span><span class="mi">2</span><span class="n">b</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span> <span class="n">link</span><span class="o">-</span><span class="n">netnsid</span> <span class="mi">2</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="mi">8470</span><span class="o">:</span><span class="mf">76ff</span><span class="o">:</span><span class="n">fe4f</span><span class="o">:</span><span class="n">de2b</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">10</span><span class="o">:</span> <span class="n">vethc8ca82e9</span><span class="err">@</span><span class="n">if3</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1450</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">master</span> <span class="n">cni0</span> <span class="n">state</span> <span class="n">UP</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="mi">76</span><span class="o">:</span><span class="n">ad</span><span class="o">:</span><span class="mi">89</span><span class="o">:</span><span class="n">ae</span><span class="o">:</span><span class="mi">21</span><span class="o">:</span><span class="mi">68</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span> <span class="n">link</span><span class="o">-</span><span class="n">netnsid</span> <span class="mi">3</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="mi">74</span><span class="n">ad</span><span class="o">:</span><span class="mf">89ff</span><span class="o">:</span><span class="n">feae</span><span class="o">:</span><span class="mi">2168</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">39</span><span class="o">:</span> <span class="n">veth686e1634</span><span class="err">@</span><span class="n">if3</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1450</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">master</span> <span class="n">cni0</span> <span class="n">state</span> <span class="n">UP</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="mi">66</span><span class="o">:</span><span class="mi">99</span><span class="o">:</span><span class="n">fe</span><span class="o">:</span><span class="mi">30</span><span class="o">:</span><span class="n">d2</span><span class="o">:</span><span class="n">e1</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span> <span class="n">link</span><span class="o">-</span><span class="n">netnsid</span> <span class="mi">4</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="mi">6499</span><span class="o">:</span><span class="n">feff</span><span class="o">:</span><span class="n">fe30</span><span class="o">:</span><span class="n">d2e1</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="mi">40</span><span class="o">:</span> <span class="n">vethef16d6b0</span><span class="err">@</span><span class="n">if3</span><span class="o">:</span> <span class="o">&lt;</span><span class="n">BROADCAST</span><span class="p">,</span><span class="n">MULTICAST</span><span class="p">,</span><span class="n">UP</span><span class="p">,</span><span class="n">LOWER_UP</span><span class="o">&gt;</span> <span class="n">mtu</span> <span class="mi">1450</span> <span class="n">qdisc</span> <span class="n">noqueue</span> <span class="n">master</span> <span class="n">cni0</span> <span class="n">state</span> <span class="n">UP</span>
+<span class="n">link</span><span class="o">/</span><span class="n">ether</span> <span class="n">c2</span><span class="o">:</span><span class="mf">7f</span><span class="o">:</span><span class="mi">73</span><span class="o">:</span><span class="mi">93</span><span class="o">:</span><span class="mi">85</span><span class="o">:</span><span class="n">fc</span> <span class="n">brd</span> <span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span><span class="o">:</span><span class="n">ff</span> <span class="n">link</span><span class="o">-</span><span class="n">netnsid</span> <span class="mi">5</span>
+<span class="n">inet6</span> <span class="n">fe80</span><span class="o">::</span><span class="n">c07f</span><span class="o">:</span><span class="mf">73ff</span><span class="o">:</span><span class="n">fe93</span><span class="o">:</span><span class="mf">85f</span><span class="n">c</span><span class="o">/</span><span class="mi">64</span> <span class="n">scope</span> <span class="n">link</span>
+<span class="n">valid_lft</span> <span class="n">forever</span> <span class="n">preferred_lft</span> <span class="n">forever</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">170</span> <span class="o">~</span><span class="p">]</span><span class="err">#</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">170</span> <span class="o">~</span><span class="p">]</span><span class="err">#</span> <span class="n">brctl</span> <span class="n">show</span>
+<span class="n">bridge</span> <span class="n">name</span>    <span class="n">bridge</span> <span class="n">id</span>   <span class="n">STP</span> <span class="n">enabled</span> <span class="n">interfaces</span>
+<span class="n">cni0</span>    <span class="mf">8000.0</span><span class="n">a580af40201</span>   <span class="n">no</span>  <span class="n">veth2a69de99</span>
+            <span class="n">veth686e1634</span>
+            <span class="n">vethc8ca82e9</span>
+            <span class="n">vethef16d6b0</span>
+<span class="n">docker0</span>    <span class="mf">8000.024243</span><span class="n">a1fcad</span>   <span class="n">no</span>
+<span class="p">[</span><span class="n">root</span><span class="err">@</span><span class="mi">10</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">88</span><span class="o">-</span><span class="mi">170</span> <span class="o">~</span><span class="p">]</span><span class="err">#</span>
+</pre></div>
+
+
+<p>此时两个Pod的网络连接如图所示： <br />
+<img alt="" src="../attach/K8S/21.png" /></p>
+<p>网络包从Container A发送到Container B的过程如下：</p>
+<ol>
+<li>网络包从busybox1的eth0发出，并通过vethef16d6b0进入到root netns（网络包从vEth的一端发送后另一端会立马收到）。</li>
+<li>网络包被传到网桥cni0，网桥通过发送“who has this IP?”的ARP请求来发现网络包需要转发到的目的地（10.244.2.208）。</li>
+<li>busybox2回答到它有这个IP，所以网桥知道应该把网络包转发到veth686e1634（busybox2）。</li>
+<li>网络包到达veth686e1634接口，并通过vEth进入到busybox2的netns，从而完成网络包从一个容器busybox1到另一个容器busybox2的过程。</li>
+</ol>
+<p>对于以上流程有疑问的同学也可以自己动手验证一下结论，最好的方式就是通过tcpdump命令在各个网络接口上进行抓包验证，看网络包是如何经过网桥再由veth pair流转到另一个容器网络当中的。</p>
+<h3 id="kubernetes_2">Kubernetes跨集群的网络连接</h3>
+<p>如今，Kubernetes的部署实现了网络虚拟化，让容器可以在同一集群中的多个节点运行并相互通信。然而，越来越多的企业将Kubernetes用作为跨所有公有云和私有云基础设施的基础计算平台，可在不同的Kubernetes集群中运行的容器想要实现互相通信，实现的方法依然是传统的通过ingress controller或者节点端口来完成。</p>
+<p>Rancher Labs于上周（2019年3月12日）<a href="https://mp.weixin.qq.com/s?__biz=MzIyMTUwMDMyOQ==&amp;mid=2247490587&amp;idx=1&amp;sn=faac41d5bb1885b6c3ccbf4bd6b2dd1f&amp;chksm=e83a9adddf4d13cb8cac55126db41b0fa39f521a1f8e321b699dcbec8e5ff2058d2c756b7b2d&amp;scene=21#wechat_redirect">推出了全新开源项目Submariner</a>，支持多个Kubernetes集群之间的跨集群网络连接。Submariner创建了必要的隧道和路径，能为部署在需要相互通信的多个Kubernetes集群中的微服务提供网络连接。</p>
+<p>这一全新的解决方案解决了Kubernetes集群之间的连接障碍，为多集群部署提供了更多实现方式，例如在跨地区的Kubernetes内复制数据库，以及跨集群部署服务网格。</p>
+<p><a href="https://mp.weixin.qq.com/s?__biz=MzIyMTUwMDMyOQ==&amp;mid=2247489400&amp;idx=1&amp;sn=c2b0a116b6cb4642c6468abb34b7d77d&amp;chksm=e83a91bedf4d18a8477ca3ecb0c8f1035e44e3444c11446692bc08ad60b35148adeaac863c77&amp;scene=21#wechat_redirect">四大模型，搞定Kubernetes网络！</a></p>
+<p><a href="https://mp.weixin.qq.com/s?__biz=MzIyMTUwMDMyOQ==&amp;mid=2247490479&amp;idx=1&amp;sn=e738a732e1a259c45b05a90e5ab1f12d&amp;chksm=e83a9d69df4d147f16d2ef72710dc9b64fa457bcf8c64410b6e72857ffb449244eed7b10739c&amp;scene=21#wechat_redirect">Kubernetes安全三步谈：如何通过RBAC和强身份验证确保外部安全<br />
+</a></p>
+<p><a href="https://mp.weixin.qq.com/s?__biz=MzIyMTUwMDMyOQ==&amp;mid=2247490573&amp;idx=1&amp;sn=6ef6c93658a1cc80e2136fc25528f5f6&amp;chksm=e83a9acbdf4d13ddffa17543dc9f9018df6871e36cae33b74f6cb32b9b68eac3b590eccd8f14&amp;scene=21#wechat_redirect">Kubernetes安全三步谈：三种方法保护Kubernetes免受内部威胁<br />
+</a></p>
+  <div class="relation">
+    <h2>Related</h2>
+    <ul>
+    
+    <li><a href="//CNI.html">Kubernetes CNI网络最强对比：Flannel、Calico、Canal和Weave</a></li>
+    
+    </ul>
+  </div>
+    </div>
+    <div id="footer">
+      <span>
+        <p>Copyright © 2019 Edward.
+        Powered by <a href="http://simiki.org/" target="_blank">Simiki</a>.</p>
+        <p>Site Generated 2019-04-25 23:36:23</p>
+      </span>
+    </div>
+
+    
+    
+  </body>
+</html>
